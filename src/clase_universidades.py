@@ -191,48 +191,91 @@ class Universidades():
             print("Message", err.msg)
 
 
-    def insertar_datos_sql(self, query):
-        """Esta función hace la conexión con MySQL y aplica las queries que le indiquemos.
+    def insertar_datos_paises(self, df_completo):
+        """Esta función prepara el dataframe para la inserción, hace la conexión con MySQL e introduce los datos de la tabla 'paises'.
         Args:
-        - query: str. La query que contiene el código para insertar los datos.
+        - df_completo: el dataframe del que extraemos los datos para insertarlos en la bbdd.
         Returns: un mensaje que indica si la operación ha tenido éxito o no."""
 
-        mydb = mysql.connector.connect(host="localhost",
+        
+        df_completo_paises = df_completo.drop(df_completo[df_completo['state_province'] == "Unknown"].index, inplace=False).drop_duplicates(["state_province"], inplace = False)
+
+        for fila, elem in df_completo_paises.iterrows():
+    
+            query_paises = f"""
+                    INSERT INTO paises (nombre_pais, nombre_provincia, latitud, longitud)
+                    VALUES ("{elem['country']}", "{elem['state_province']}", {elem['latitude']}, {elem['longitude']});
+                    """ 
+    
+        
+            mydb = mysql.connector.connect(host="localhost",
                                        user="root",
                                        password=f'{self.contraseña}', 
                                        database=f"{self.nombre_bbdd}") 
-        mycursor = mydb.cursor()
+            mycursor = mydb.cursor()
         
-        try:
-            mycursor.execute(query)
-            mydb.commit()
-            return "Las inserción se ha realizado correctamente."
+            try:
+                mycursor.execute(query_paises)
           
-        except mysql.connector.Error as err:
-            print(err)
-            print("Error Code:", err.errno)
-            print("SQLSTATE", err.sqlstate)
-            print("Message", err.msg)
-    
-    
-    def extraer_idestado(self, provincia):
-        """Esta función hace la conexión con MySQL y extrae los índices de 'idestado' según la provincie que indiquemos.
-        Args:
-        - provincia: str. La provincia de la que deseamos extraer el índice.
-        Returns: un mensaje que indica si la operación ha tenido éxito o no."""
-    
-        mydb = mysql.connector.connect(host="localhost",
-                                       user="root",
-                                       password=f'{self.contraseña}', 
-                                       database=f"{self.nombre_bbdd}") 
-
-        mycursor = mydb.cursor()
+            except mysql.connector.Error as err:
+                print(err)
+                print("Error Code:", err.errno)
+                print("SQLSTATE", err.sqlstate)
+                print("Message", err.msg)
         
-        try:
+        query_paises_unknown = f"""
+        INSERT INTO paises (nombre_pais, nombre_provincia, latitud, longitud)
+        VALUES ("Argentina", "Unknown", 0.0, 0.0),
+                ("Canada", "Unknown", 0.0, 0.0),
+                ("United States", "Unknown", 0.0, 0.0);
+        """
+
+        mycursor.execute(query_paises_unknown)
+        mydb.commit()
+        return "Las inserción se ha realizado correctamente."
+            
+        
+    def insertar_datos_universidades(self, df_completo):
+        """Esta función prepara el dataframe para la inserción, hace la conexión con MySQL e introduce los datos de la tabla 'paises'.
+        Args:
+        - df_completo: el dataframe del que extraemos los datos para insertarlos en la bbdd.
+        Returns: un mensaje que indica si la operación ha tenido éxito o no."""
+
+    
+        df_completo["name"] = df_completo["name"].str.replace("'", "")
+
+        for fila, elem in df_completo.iterrows():
+
+            mydb = mysql.connector.connect(host="localhost",
+                                           user="root",
+                                           password=f'{self.contraseña}', 
+                                           database=f"{self.nombre_bbdd}") 
+
+            mycursor = mydb.cursor()
+        
+           
+            provincia = elem["state_province"]
             query_sacar_id = f"SELECT idestado FROM paises WHERE nombre_provincia = '{provincia}'"
             mycursor.execute(query_sacar_id)
-            id_ = mycursor.fetchall()[0][0]
-            return id_
+            idestado = mycursor.fetchall()[0][0]
+            
+            #except: 
+                #print("Lo lamentamos, no tenemos información de ese país en la base de datos.")
+            
         
-        except: 
-            return "Lo lamentamos, no tenemos información de ese país en la base de datos."
+            query_universidades = f"""
+                                INSERT INTO universidades (nombre_universidad, pagina_web, paises_idestado)
+                                VALUES ('{elem["name"]}', '{elem["web_pages"]}', {idestado});
+                                """
+        
+            try:
+                mycursor.execute(query_universidades)
+                return "La inserción se ha realizado correctamente."
+          
+            except mysql.connector.Error as err:
+                print(err)
+                print("Error Code:", err.errno)
+                print("SQLSTATE", err.sqlstate)
+                print("Message", err.msg)
+        
+            
